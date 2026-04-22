@@ -57,7 +57,8 @@ def init_agent():
         sessions[session_id] = {
             "artefact": artefact,
             "profile": profile,
-            "interactor": interactor
+            "interactor": interactor,
+            "image_id": None # image generation can be added later if needed
         }
 
         return jsonify({
@@ -71,6 +72,33 @@ def init_agent():
         print(f"Error in init_agent: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
+@app.route("/generate-image", methods=["POST"])
+def generate_image_endpoint():
+    """
+    Separate endpoint for image generation.
+    Called after init-agent so it doesn't slow down the main pipeline.
+    """
+    try:
+        data = request.get_json()
+        session_id = data.get("session_id")
+
+        if session_id not in sessions:
+            return jsonify({"status": "error", "message": "Session not found"}), 404
+
+        profile = sessions[session_id]["profile"]
+
+        from collector import generate_image
+        image_id = generate_image(profile)
+
+        sessions[session_id]["image_id"] = image_id
+
+        return jsonify({
+            "status": "success",
+            "image_id": image_id
+        })
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route("/evaluate-agent", methods=["POST"])
 def evaluate_agent():

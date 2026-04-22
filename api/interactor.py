@@ -5,6 +5,7 @@
 # ============================================================
 
 import os
+import dotenv
 from mistralai.client import Mistral
 from dotenv import load_dotenv
 

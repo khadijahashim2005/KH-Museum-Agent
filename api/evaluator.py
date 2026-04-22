@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
 class Evaluator:
     def __init__(self, artefact: dict, profile: str, interactor):
         self.client = Mistral(api_key=os.getenv("MISTRAL_API_KEY"))
@@ -26,8 +27,7 @@ class Evaluator:
         Generate MCQ questions from structured artefact fields
         and evaluate the agent's answers using Precision/Recall
         """
-        # Add parent directory to path for evaluation imports
-        sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         from evaluation.hard_mcq_generator import build_hard_question_objects
 
         questions = build_hard_question_objects(self.artefact)
@@ -35,17 +35,14 @@ class Evaluator:
         correct_count = 0
 
         for q in questions:
-            # Ask the interactor
             agent_answer = self.interactor.chat(
                 f"Please answer this question with ONLY the exact option text, nothing else: {q['question']} Options: {', '.join(q['options'])}"
             )
 
-            # Check if correct
             is_correct = q['correct_answer'].lower().strip() in agent_answer.lower().strip()
             if is_correct:
                 correct_count += 1
 
-            # Calculate Precision/Recall
             precision, recall = self._calculate_precision_recall(
                 agent_answer, q['correct_answer']
             )
@@ -78,32 +75,28 @@ class Evaluator:
         Generate questions from artefact summary
         and evaluate using QA-Judge agent
         """
-        from evaluation.soft_mcq_generator import build_soft_question_objects
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-        # Override call_llm
-        import evaluation.utils as eval_utils
-        import api.config.llm_client as llm_client if os.path.exists("api/config") else None
+        import api.config.llm_client as llm_module
+        import evaluation.soft_mcq_generator as soft_module
+        soft_module.call_llm = llm_module.call_llm
+
+        from evaluation.soft_mcq_generator import build_soft_question_objects
 
         questions = build_soft_question_objects(self.artefact)
         results = []
         scores = []
 
         for q in questions:
-            # Ask the interactor
             agent_answer = self.interactor.chat(q['question'])
-
-            # Judge the answer
             judgment = self._judge_answer(
                 q['question'],
                 agent_answer,
                 q['correct_answer'],
                 q['source_summary']
             )
-
-            # Parse score
             score = self._parse_judgment_score(judgment)
             scores.append(score)
-
             results.append({
                 "question": q['question'],
                 "correct_answer": q['correct_answer'],
