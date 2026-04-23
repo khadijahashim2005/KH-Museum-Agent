@@ -11,7 +11,10 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add project root and api/ to path
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, BASE_DIR)
+sys.path.insert(0, os.path.join(BASE_DIR, "api"))
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -26,7 +29,7 @@ CACHE_FILE = os.path.join(BASE_DIR, "data", "cached_agents.json")
 # ── Pick which artefact to evaluate ─────────────────────────
 # Change this to test a different artefact (0-9)
 TEST_INDEX = 0  # Abbott Papyrus
-
+N_RUNS = 5  # Number of evaluation runs to perform (for stability testing)
 
 def main():
     print("Loading cache...")
@@ -57,11 +60,15 @@ def main():
     print("Interactor ready\n")
 
     # Run full evaluation
-    results = run_full_evaluation(interactor, artefact)
+    all_scores = []
+    for i in range(N_RUNS):
+        print(f"\nRun {i+1}/{N_RUNS}...")
+        results = run_full_evaluation(interactor, artefact)
+        all_scores.append(results["overall_score"])
 
-    print(f"\nDone! Results saved to data/evaluation_results.json")
-    print(f"Overall score: {results['overall_score']}")
-
+    print(f"\nIndividual scores : {all_scores}")
+    print(f"Average score     : {round(sum(all_scores)/len(all_scores), 2)}")
+    print(f"Results saved to data/evaluation_results.json")
 
 if __name__ == "__main__":
     main()

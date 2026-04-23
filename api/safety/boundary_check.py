@@ -25,7 +25,7 @@ BOUNDARY_PATTERNS = [
      "legal"),
 
     # Harmful or violent content
-    (r"\b(how\s+to\s+(make|build|create)\s+(a\s+)?(weapon|bomb|poison|drug)|hurt\s+someone|harm|kill)\b",
+    (r"\b(how\s+(to|do\s+i|can\s+i)\s+(make|build|create)\s+(a\s+)?(weapon|bomb|poison|drug)|hurt\s+someone|harm|kill)\b",
      "harmful"),
 
     # Political opinions

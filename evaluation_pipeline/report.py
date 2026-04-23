@@ -1,139 +1,144 @@
 # ============================================================
 # report.py
 # Generates a readable evaluation report from
-# data/evaluation_results.json produced by evaluation_script.py
+# data/evaluation_results.json produced by run_evaluation.py
 #
 # Usage: python evaluation_pipeline/report.py
-# Output: data/evaluation_report.txt  (and prints to console)
+# Output: printed to console + saved to data/evaluation_report.txt
 # ============================================================
 
 import json
 import os
 from typing import Dict, List
 
-# ── Paths ───────────────────────────────────────────────────
-BASE_DIR      = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-RESULTS_FILE  = os.path.join(BASE_DIR, "data", "evaluation_results.json")
-REPORT_FILE   = os.path.join(BASE_DIR, "data", "evaluation_report.txt")
+BASE_DIR     = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+RESULTS_FILE = os.path.join(BASE_DIR, "data", "evaluation_results.json")
+REPORT_FILE  = os.path.join(BASE_DIR, "data", "evaluation_report.txt")
 
 
 def load_results(path: str) -> dict:
     if not os.path.exists(path):
         raise FileNotFoundError(
             f"Results not found: {path}\n"
-            "Run evaluation/evaluation_script.py first."
+            "Run scripts/test_evaluation.py or click Run Evaluation in the UI first."
         )
     with open(path, "r") as f:
-        return json.load(f)
+        data = json.load(f)
+
+    # File is a list of runs — report on the latest
+    if isinstance(data, list):
+        if not data:
+            raise ValueError("No evaluation runs found in results file.")
+        print(f"Found {len(data)} evaluation run(s) — reporting on the latest.\n")
+        return data[-1]
+
+    return data
 
 
-def format_bar(score: float, width: int = 20) -> str:
-    """Simple ASCII progress bar for a 0–1 score."""
+def bar(score: float, width: int = 20) -> str:
+    """ASCII progress bar for a 0-1 score."""
     filled = int(score * width)
     return f"[{'█' * filled}{'░' * (width - filled)}] {score:.0%}"
 
 
-def group_by_artifact(results: List[Dict]) -> Dict[str, List[Dict]]:
-    groups: Dict[str, List[Dict]] = {}
-    for r in results:
-        title = r.get("artifact_title", "Unknown")
-        groups.setdefault(title, []).append(r)
-    return groups
-
-
-def group_by_type(results: List[Dict]) -> Dict[str, List[Dict]]:
-    groups: Dict[str, List[Dict]] = {}
-    for r in results:
-        qtype = r.get("question_type", "unknown")
-        groups.setdefault(qtype, []).append(r)
-    return groups
-
-
-def generate_report(data: dict) -> str:
+def generate_report(run: dict) -> str:
     lines = []
-
-    summary = data.get("summary", {})
-    results = data.get("results", [])
+    w = 60
 
     # ── Header ──────────────────────────────────────────────
-    lines.append("=" * 60)
+    lines.append("=" * w)
     lines.append("  KH MUSEUM AGENT — EVALUATION REPORT")
-    lines.append("=" * 60)
+    lines.append("=" * w)
+    lines.append(f"  Artefact  : {run.get('artifact', 'Unknown')}")
+    if run.get("timestamp"):
+        lines.append(f"  Timestamp : {run['timestamp']}")
     lines.append("")
 
-    # ── Overall summary ─────────────────────────────────────
-    total    = summary.get("total_questions", len(results))
-    correct  = summary.get("correct", sum(1 for r in results if r.get("is_correct")))
-    accuracy = summary.get("accuracy", correct / total if total else 0)
-
-    lines.append("OVERALL SUMMARY")
-    lines.append("-" * 40)
-    lines.append(f"Total questions : {total}")
-    lines.append(f"Correct answers : {correct}")
-    lines.append(f"Accuracy        : {format_bar(accuracy)}")
+    # ── Overall score ────────────────────────────────────────
+    overall = run.get("overall_score", 0)
+    lines.append("OVERALL SCORE")
+    lines.append("-" * w)
+    lines.append(f"  {bar(overall, 30)}  ({overall:.0%})")
     lines.append("")
 
-    # ── By question type ────────────────────────────────────
-    by_type = group_by_type(results)
-    if by_type:
-        lines.append("BY QUESTION TYPE")
-        lines.append("-" * 40)
-        for qtype, items in sorted(by_type.items()):
-            n       = len(items)
-            n_corr  = sum(1 for r in items if r.get("is_correct"))
-            acc     = n_corr / n if n else 0
-            lines.append(f"  {qtype.upper():<10} {format_bar(acc)}  ({n_corr}/{n})")
+    # ── Dimension summary ────────────────────────────────────
+    hard  = run.get("hard_knowledge", {})
+    soft  = run.get("soft_knowledge", {})
+    safe  = run.get("safety", {})
+    cons  = run.get("consistency", {})
+
+    lines.append("DIMENSION SUMMARY  (weights: hard 30% · soft 30% · safety 20% · consistency 20%)")
+    lines.append("-" * w)
+
+    hard_acc  = hard.get("accuracy", 0)
+    soft_avg  = soft.get("avg_score", 0)
+    safe_sc   = safe.get("safety_score", 0)
+    cons_sc   = cons.get("consistency_score", 0)
+
+    lines.append(f"  Hard Knowledge   {bar(hard_acc)}  "
+                 f"({hard.get('correct', 0)}/{hard.get('total_questions', 0)} correct)")
+    lines.append(f"  Soft Knowledge   {bar(soft_avg)}  "
+                 f"(avg judge score)")
+    lines.append(f"  Safety           {bar(safe_sc)}  "
+                 f"({safe.get('correctly_refused', 0)}/{safe.get('total_tests', 0)} refused)")
+    lines.append(f"  Consistency      {bar(cons_sc)}  "
+                 f"({cons.get('consistent_count', 0)}/{cons.get('total_tests', 0)} consistent)")
+    lines.append("")
+
+    # ── Hard knowledge detail ────────────────────────────────
+    lines.append("HARD KNOWLEDGE — Question Breakdown")
+    lines.append("-" * w)
+    for r in hard.get("results", []):
+        status = "✅" if r.get("is_correct") else "❌"
+        lines.append(f"  {status} [{r.get('source_field', '?')}]")
+        lines.append(f"     Q: {r.get('question', '')}")
+        lines.append(f"     ✓  {r.get('correct_answer', '')}")
+        if not r.get("is_correct"):
+            lines.append(f"     ✗  {r.get('agent_answer', '')[:80]}")
         lines.append("")
 
-    # ── By artefact ─────────────────────────────────────────
-    by_artifact = group_by_artifact(results)
-    if by_artifact:
-        lines.append("BY ARTEFACT")
-        lines.append("-" * 40)
-        for title, items in sorted(by_artifact.items()):
-            n      = len(items)
-            n_corr = sum(1 for r in items if r.get("is_correct"))
-            acc    = n_corr / n if n else 0
-            lines.append(f"\n  {title}")
-            lines.append(f"  {format_bar(acc)}  ({n_corr}/{n} correct)")
-
-            # Break down by field
-            by_field: Dict[str, List] = {}
-            for r in items:
-                field = r.get("source_field", "unknown")
-                by_field.setdefault(field, []).append(r)
-
-            for field, field_items in sorted(by_field.items()):
-                fn = len(field_items)
-                fc = sum(1 for r in field_items if r.get("is_correct"))
-                lines.append(f"    {field:<25} {fc}/{fn}")
+    # ── Soft knowledge detail ────────────────────────────────
+    lines.append("SOFT KNOWLEDGE — Judge Results")
+    lines.append("-" * w)
+    for r in soft.get("results", []):
+        score   = r.get("score", 0)
+        verdict = r.get("verdict", "?")
+        lines.append(f"  [{verdict.upper()}]  score: {score:.2f}")
+        lines.append(f"     Q: {r.get('question', '')}")
+        lines.append(f"     Agent: {r.get('agent_answer', '')[:100]}")
         lines.append("")
 
-    # ── Wrong answers ────────────────────────────────────────
-    wrong = [r for r in results if not r.get("is_correct")]
-    if wrong:
-        lines.append(f"INCORRECT ANSWERS ({len(wrong)} total)")
-        lines.append("-" * 40)
-        for r in wrong[:20]:   # cap at 20 for readability
-            lines.append(f"\n  [{r.get('artifact_title', '?')}]")
-            lines.append(f"  Q: {r['question']}")
-            lines.append(f"  ✓  {r['correct_answer']}")
-            lines.append(f"  ✗  {r.get('agent_response', '?')}")
-        if len(wrong) > 20:
-            lines.append(f"\n  ... and {len(wrong) - 20} more (see evaluation_results.json)")
+    # ── Safety detail ────────────────────────────────────────
+    lines.append("SAFETY — Refusal Testing")
+    lines.append("-" * w)
+    for r in safe.get("results", []):
+        status = "✅ Refused" if r.get("correctly_refused") else "❌ Did not refuse"
+        lines.append(f"  {status}  [{r.get('category', '?')}]")
+        lines.append(f"     Q: {r.get('question', '')}")
+        if not r.get("correctly_refused"):
+            lines.append(f"     Agent: {r.get('agent_answer', '')[:100]}")
         lines.append("")
 
-    lines.append("=" * 60)
+    # ── Consistency detail ───────────────────────────────────
+    lines.append("CONSISTENCY — Character Consistency")
+    lines.append("-" * w)
+    for r in cons.get("results", []):
+        status = "✅" if r.get("is_consistent") else "❌"
+        lines.append(f"  {status} Q: {r.get('question', '')}")
+        lines.append(f"     Agent: {r.get('agent_answer', '')[:100]}")
+        lines.append("")
+
+    lines.append("=" * w)
     lines.append("END OF REPORT")
-    lines.append("=" * 60)
+    lines.append("=" * w)
 
     return "\n".join(lines)
 
 
-def main() -> None:
+def main():
     print(f"Loading results from {RESULTS_FILE}...")
-    data   = load_results(RESULTS_FILE)
-    report = generate_report(data)
+    run    = load_results(RESULTS_FILE)
+    report = generate_report(run)
 
     print(report)
 
