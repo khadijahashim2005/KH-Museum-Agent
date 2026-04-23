@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KH Museum Agent</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Cinzel:wght@400;600&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-deep:     #0a0703;
+            --bg-stone:    #16100a;
+            --bg-wood:     #1e1509;
+            --bg-case:     #251a0d;
+            --border-warm: #4a3520;
+            --border-gold: #7a5c2e;
+            --gold-bright: #c8922a;
+            --gold-light:  #e8b84b;
+            --text-cream:  #f5e6c8;
+            --text-warm:   #c4a882;
+            --text-muted:  #7a6045;
+            --case-glow:   0 0 48px #c8922a1a, 0 1px 0 #7a5c2e;
+            --panel-h:     680px;
+            --score-high:  #7eb87e;
+            --score-low:   #b86060;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'EB Garamond', Georgia, serif;
+            background: var(--bg-deep);
+            color: var(--text-cream);
+            min-height: 100vh;
+            background-image:
+                radial-gradient(ellipse at 50% 0%, #3a2a1018 0%, transparent 55%),
+                url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+        }
+
+        /* ── HEADER ── */
+        header {
+            background: linear-gradient(180deg, #0d0a05 0%, #1a1208 100%);
+            padding: 30px 56px;
+            border-bottom: 1px solid var(--border-gold);
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            position: relative;
+        }
+
+        header::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(ellipse at 50% -20%, #e8b84b14 0%, transparent 65%);
+            pointer-events: none;
+        }
+
+        .header-icon { font-size: 2.2rem; filter: drop-shadow(0 0 14px #c8922a99); }
+
+        header h1 {
+            font-family: 'Cinzel', serif;
+            color: var(--gold-light);
+            font-size: 1.5rem;
+            font-weight: 600;
+            letter-spacing: 4px;
+            text-shadow: 0 0 32px #c8922a55;
+        }
+
+        header p {
+            font-style: italic;
+            color: var(--text-muted);
+            font-size: 1rem;
+            margin-top: 3px;
+        }
+
+        /* ── LAYOUT: 3 columns ── */
+        .container {
+            max-width: 1440px;
+            margin: 0 auto;
+            padding: 40px 36px;
+            display: grid;
+            grid-template-columns: 300px 1fr 260px;
+            grid-template-rows: auto var(--panel-h);
+            grid-template-areas:
+                "select  select  select"
+                "guide   chat    display";
+            gap: 20px;
+            align-items: start;
+        }
+
+        /* ── SELECT ROW (full width) ── */
+        .select-row {
+            grid-area: select;
+        }
+
+        /* ── SHARED CARD SHELL ── */
+        .card {
+            background: var(--bg-case);
+            border-radius: 6px;
+            border: 1px solid var(--border-warm);
+            box-shadow: var(--case-glow);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 10%; right: 10%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--gold-bright), transparent);
+            opacity: 0.5;
+            z-index: 1;
+        }
+
+        .card-inner {
+            padding: 24px 24px 20px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .card-title {
+            font-family: 'Cinzel', serif;
+            color: var(--gold-bright);
+            font-size: 0.62rem;
+            font-weight: 600;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border-warm);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .card-title::before {
+            content: '◆';
+            font-size: 0.42rem;
+            opacity: 0.7;
+        }
+
+        /* ── SELECT CARD ── */
+        .select-card {
+            padding: 20px 24px;
+        }
+
+        .select-inner {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .select-label {
+            font-family: 'Cinzel', serif;
+            color: var(--gold-bright);
+            font-size: 0.62rem;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            flex-shrink: 0;
+        }
+
+        .select-label::before { content: '◆'; font-size: 0.42rem; opacity: 0.7; }
+
+        select {
+            flex: 1;
+            padding: 12px 16px;
+            background: var(--bg-wood);
+            border: 1px solid var(--border-gold);
+            border-radius: 4px;
+            color: var(--text-cream);
+            font-family: 'EB Garamond', serif;
+            font-size: 1.05rem;
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23c8922a' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 14px center;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: var(--gold-bright);
+            box-shadow: 0 0 0 3px #c8922a1a;
+        }
+
+        select:disabled { opacity: 0.4; cursor: not-allowed; }
+        select option   { background: var(--bg-wood); color: var(--text-cream); }
+
+        .status {
+            font-size: 0.88rem;
+            font-style: italic;
+            color: var(--text-muted);
+            white-space: nowrap;
+            flex-shrink: 0;
+            min-width: 130px;
+        }
+
+        .status.error   { color: var(--score-low); }
+        .status.success { color: var(--score-high); }
+
+        /* ── GUIDE PANEL ── */
+        .guide-panel {
+            grid-area: guide;
+            height: var(--panel-h);
+        }
+
+        /* stable flex-column wrapper — never changes class */
+        .guide-content {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* avatar row: image left, name/role right */
+        .guide-avatar-wrap {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding-bottom: 18px;
+            border-bottom: 1px solid var(--border-warm);
+            flex-shrink: 0;
+        }
+
+        .guide-avatar-img {
+            width: 72px;
+            height: 72px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 1px solid var(--border-gold);
+            box-shadow: 0 0 20px #c8922a2a;
+            flex-shrink: 0;
+        }
+
+        .guide-avatar-placeholder {
+            width: 72px;
+            height: 72px;
+            border-radius: 50%;
+            background: var(--bg-wood);
+            border: 1px solid var(--border-gold);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Cinzel', serif;
+            font-size: 1.6rem;
+            color: var(--gold-bright);
+            flex-shrink: 0;
+        }
+
+        .guide-name {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--gold-light);
+            line-height: 1.25;
+            margin-bottom: 3px;
+        }
+
+        .guide-role {
+            font-size: 0.85rem;
+            font-style: italic;
+            color: var(--text-muted);
+        }
+
+        .guide-bio {
+            flex: 1;
+            overflow-y: auto;
+            font-size: 1rem;
+            color: var(--text-warm);
+            line-height: 1.8;
+            padding-top: 16px;
+            text-align: left;
+            font-style: normal;
+        }
+
+        .guide-bio::-webkit-scrollbar { width: 3px; }
+        .guide-bio::-webkit-scrollbar-thumb { background: var(--border-gold); border-radius: 2px; }
+
+        .guide-empty {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            font-style: italic;
+            font-size: 0.95rem;
+            text-align: center;
+            padding: 20px;
+        }
+
+        /* ── CHAT PANEL ── */
+        .chat-panel {
+            grid-area: chat;
+            height: var(--panel-h);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-header {
+            padding: 18px 24px;
+            border-bottom: 1px solid var(--border-warm);
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            background: linear-gradient(180deg, #1e1509 0%, var(--bg-case) 100%);
+            flex-shrink: 0;
+        }
+
+        .agent-avatar {
+            width: 46px;
+            height: 46px;
+            background: var(--bg-wood);
+            border: 1px solid var(--border-gold);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Cinzel', serif;
+            font-size: 1.1rem;
+            color: var(--gold-bright);
+            box-shadow: 0 0 16px #c8922a22;
+            flex-shrink: 0;
+            overflow: hidden;
+        }
+
+        .agent-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+        .agent-info h3 {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--text-cream);
+        }
+
+        .agent-info p {
+            font-size: 0.88rem;
+            font-style: italic;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            background: linear-gradient(180deg, var(--bg-stone) 0%, var(--bg-deep) 100%);
+        }
+
+        .chat-messages::-webkit-scrollbar { width: 4px; }
+        .chat-messages::-webkit-scrollbar-thumb { background: var(--border-warm); border-radius: 2px; }
+
+        .message {
+            max-width: 80%;
+            padding: 13px 17px;
+            border-radius: 4px;
+            font-size: 1rem;
+            line-height: 1.7;
+        }
+
+        .message.agent {
+            background: var(--bg-case);
+            border: 1px solid var(--border-warm);
+            border-left: 2px solid var(--gold-bright);
+            align-self: flex-start;
+            box-shadow: 0 2px 14px #00000028;
+        }
+
+        .message.user {
+            background: var(--bg-wood);
+            border: 1px solid var(--border-gold);
+            align-self: flex-end;
+            box-shadow: 0 2px 14px #00000028;
+        }
+
+        .message .sender {
+            font-family: 'Cinzel', serif;
+            font-size: 0.6rem;
+            letter-spacing: 2.5px;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .message.agent .sender { color: var(--gold-bright); }
+        .message.user .sender  { color: var(--text-muted); }
+
+        .empty-state {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .empty-state .icon {
+            font-size: 2.8rem;
+            filter: drop-shadow(0 0 14px #c8922a44);
+            animation: flicker 4s ease-in-out infinite;
+        }
+
+        .empty-state p {
+            font-style: italic;
+            font-size: 1rem;
+            color: var(--text-muted);
+            max-width: 220px;
+            line-height: 1.65;
+        }
+
+        @keyframes flicker {
+            0%, 100% { filter: drop-shadow(0 0 14px #c8922a44); }
+            50%       { filter: drop-shadow(0 0 22px #c8922a88); }
+        }
+
+        .chat-input {
+            padding: 16px 20px;
+            border-top: 1px solid var(--border-warm);
+            display: flex;
+            gap: 10px;
+            background: var(--bg-wood);
+            flex-shrink: 0;
+        }
+
+        .chat-input input {
+            flex: 1;
+            padding: 12px 16px;
+            background: var(--bg-stone);
+            border: 1px solid var(--border-warm);
+            border-radius: 4px;
+            color: var(--text-cream);
+            font-family: 'EB Garamond', serif;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .chat-input input::placeholder { color: var(--text-muted); font-style: italic; }
+        .chat-input input:focus   { border-color: var(--gold-bright); box-shadow: 0 0 0 3px #c8922a12; }
+        .chat-input input:disabled { opacity: 0.4; }
+
+        .send-btn {
+            padding: 12px 20px;
+            background: var(--bg-case);
+            border: 1px solid var(--border-gold);
+            border-radius: 4px;
+            color: var(--gold-light);
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.2s;
+        }
+
+        .send-btn:hover    { background: var(--bg-wood); border-color: var(--gold-light); }
+        .send-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+        /* ── ON DISPLAY PANEL ── */
+        .display-panel {
+            grid-area: display;
+            height: var(--panel-h);
+        }
+
+        .display-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .display-table tr { border-bottom: 1px solid var(--border-warm); }
+        .display-table tr:last-child { border-bottom: none; }
+
+        .display-table td {
+            padding: 12px 0;
+            vertical-align: top;
+            line-height: 1.4;
+        }
+
+        .display-table td:first-child {
+            font-family: 'Cinzel', serif;
+            font-size: 0.6rem;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            padding-right: 10px;
+            padding-top: 14px;
+            white-space: nowrap;
+        }
+
+        .display-table td:last-child {
+            font-size: 0.98rem;
+            color: var(--text-cream);
+        }
+
+        .wiki-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            margin-top: 20px;
+            font-size: 0.93rem;
+            font-style: italic;
+            color: var(--gold-bright);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .wiki-link:hover { color: var(--gold-light); }
+        .wiki-link::after { content: '→'; font-style: normal; }
+
+        /* ── SPINNER ── */
+        .spinner {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 1.5px solid var(--gold-bright);
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="header-icon">🏛️</div>
+    <div>
+        <h1>KH Museum Agent</h1>
+        <p>AI-Generated Interactive Guides for the British Museum Collection</p>
+    </div>
+</header>
+
+<div class="container">
+
+    <!-- Select Row (spans full width) -->
+    <div class="select-row">
+        <div class="card select-card">
+            <div class="select-inner">
+                <div class="select-label">Select Artefact</div>
+                <select id="artefactSelect" aria-label="Select artefact" onchange="loadAgent()">
+                    <option value="">Choose an artefact...</option>
+                    <option value="museum-experience_0">Abbott Papyrus</option>
+                    <option value="museum-experience_1">El-Amra Clay Model of Cattle</option>
+                    <option value="museum-experience_2">Benin Ivory Mask</option>
+                    <option value="museum-experience_3">Bronze Head of Queen Idia</option>
+                    <option value="museum-experience_4">Musicians Plate</option>
+                    <option value="museum-experience_5">Statue of Ashurnasirpal II</option>
+                    <option value="museum-experience_6">Guisborough Helmet</option>
+                    <option value="museum-experience_7">Bell Shrine of Conall Cael</option>
+                    <option value="museum-experience_8">Copán Bench Panel</option>
+                    <option value="museum-experience_9">Empress Pepper Pot</option>
+                </select>
+                <div class="status" id="loadStatus"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Guide Panel (left) -->
+    <div class="card guide-panel" id="guidePanel">
+        <div class="card-inner">
+            <div class="card-title">Your Guide</div>
+            <div id="guideContent" class="guide-content">
+                <div class="guide-empty">Select an artefact to meet your guide</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Panel (centre) -->
+    <div class="card chat-panel">
+        <div class="chat-header">
+            <div class="agent-avatar" id="agentAvatar">?</div>
+            <div class="agent-info">
+                <h3 id="agentName">Select an artefact to begin</h3>
+                <p id="agentArtefact">British Museum Collection</p>
+            </div>
+        </div>
+
+        <div class="chat-messages" id="chatMessages">
+            <div class="empty-state">
+                <div class="icon">🕯️</div>
+                <p>Choose an artefact to meet its guide</p>
+            </div>
+        </div>
+
+        <div class="chat-input">
+            <input
+                type="text"
+                id="userInput"
+                placeholder="Ask your guide something..."
+                disabled
+                onkeypress="handleKeyPress(event)"
+            />
+            <button type="button" class="send-btn" id="sendBtn" onclick="sendMessage()" disabled>➤</button>
+        </div>
+    </div>
+
+    <!-- On Display Panel (right) -->
+    <div class="card display-panel" id="onDisplayCard">
+        <div class="card-inner">
+            <div class="card-title">On Display</div>
+            <table class="display-table">
+                <tr><td>Name</td>    <td id="dispName">—</td></tr>
+                <tr><td>Date</td>    <td id="dispDate">—</td></tr>
+                <tr><td>Origin</td>  <td id="dispOrigin">—</td></tr>
+                <tr><td>Material</td><td id="dispMaterial">—</td></tr>
+                <tr><td>Gallery</td> <td id="dispGallery">—</td></tr>
+            </table>
+            <a class="wiki-link" id="dispWiki" href="#" target="_blank" rel="noopener">
+                Read more on Wikipedia
+            </a>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    const API_BASE = 'http://localhost:5004'
+    let conversationId = null
+    let agentName = null
+
+    const artefacts = {
+        'museum-experience_0': {
+            name: 'Abbott Papyrus', date: 'c. 1100 BCE',
+            origin: 'Thebes, Egypt', material: 'Papyrus',
+            gallery: 'Room 64 — Egypt',
+            wiki: 'https://en.wikipedia.org/wiki/Abbott_Papyrus',
+            storyname: 'museum-experience', event_index: 0
+        },
+        'museum-experience_1': {
+            name: 'El-Amra Clay Model of Cattle', date: 'c. 3500 BCE',
+            origin: 'El-Amra, Egypt', material: 'Clay',
+            gallery: 'Room 65 — Sudan, Egypt',
+            wiki: 'https://en.wikipedia.org/wiki/El-Amra',
+            storyname: 'museum-experience', event_index: 1
+        },
+        'museum-experience_2': {
+            name: 'Benin Ivory Mask', date: '16th century',
+            origin: 'Benin Kingdom, Nigeria', material: 'Ivory',
+            gallery: 'Room 25 — Africa',
+            wiki: 'https://en.wikipedia.org/wiki/Benin_ivory_mask',
+            storyname: 'museum-experience', event_index: 2
+        },
+        'museum-experience_3': {
+            name: 'Bronze Head of Queen Idia', date: '16th century',
+            origin: 'Benin Kingdom, Nigeria', material: 'Bronze',
+            gallery: 'Room 25 — Africa',
+            wiki: 'https://en.wikipedia.org/wiki/Idia_(queen)',
+            storyname: 'museum-experience', event_index: 3
+        },
+        'museum-experience_4': {
+            name: 'Musicians Plate', date: '7th century CE',
+            origin: 'Cyprus', material: 'Silver',
+            gallery: 'Room 41 — Byzantium',
+            wiki: 'https://en.wikipedia.org/wiki/Cyprus_Treasure',
+            storyname: 'museum-experience', event_index: 4
+        },
+        'museum-experience_5': {
+            name: 'Statue of Ashurnasirpal II', date: '883–859 BCE',
+            origin: 'Nimrud, Iraq', material: 'Gypsum alabaster',
+            gallery: 'Room 6 — Assyria',
+            wiki: 'https://en.wikipedia.org/wiki/Ashurnasirpal_II',
+            storyname: 'museum-experience', event_index: 5
+        },
+        'museum-experience_6': {
+            name: 'Guisborough Helmet', date: '2nd–3rd century CE',
+            origin: 'Guisborough, England', material: 'Bronze',
+            gallery: 'Room 49 — Roman Britain',
+            wiki: 'https://en.wikipedia.org/wiki/Guisborough_helmet',
+            storyname: 'museum-experience', event_index: 6
+        },
+        'museum-experience_7': {
+            name: 'Bell Shrine of Conall Cael', date: '8th century CE',
+            origin: 'Ireland', material: 'Bronze',
+            gallery: 'Room 40 — Medieval Europe',
+            wiki: 'https://en.wikipedia.org/wiki/Bell_shrine_of_Conall_Cael',
+            storyname: 'museum-experience', event_index: 7
+        },
+        'museum-experience_8': {
+            name: 'Copán Bench Panel', date: '8th century CE',
+            origin: 'Copán, Honduras', material: 'Stone',
+            gallery: 'Room 27 — Americas',
+            wiki: 'https://en.wikipedia.org/wiki/Cop%C3%A1n',
+            storyname: 'museum-experience', event_index: 8
+        },
+        'museum-experience_9': {
+            name: 'Empress Pepper Pot', date: '4th century CE',
+            origin: 'Hoxne, England', material: 'Silver',
+            gallery: 'Room 49 — Roman Britain',
+            wiki: 'https://en.wikipedia.org/wiki/Hoxne_Hoard',
+            storyname: 'museum-experience', event_index: 9
+        }
+    }
+
+    function showOnDisplay(artefact) {
+        document.getElementById('dispName').textContent     = artefact.name
+        document.getElementById('dispDate').textContent     = artefact.date
+        document.getElementById('dispOrigin').textContent   = artefact.origin
+        document.getElementById('dispMaterial').textContent = artefact.material
+        document.getElementById('dispGallery').textContent  = artefact.gallery
+        document.getElementById('dispWiki').href            = artefact.wiki
+    }
+
+    function addMessage(content, isUser = false) {
+        const messages   = document.getElementById('chatMessages')
+        const emptyState = messages.querySelector('.empty-state')
+        if (emptyState) emptyState.remove()
+
+        const msg = document.createElement('div')
+        msg.className = `message ${isUser ? 'user' : 'agent'}`
+        msg.innerHTML = `
+            <div class="sender">${isUser ? 'Visitor' : (agentName || 'Guide')}</div>
+            <div>${content}</div>`
+        messages.appendChild(msg)
+        messages.scrollTop = messages.scrollHeight
+    }
+
+    async function loadAgent() {
+        const select   = document.getElementById('artefactSelect')
+        const selected = select.value
+        const status   = document.getElementById('loadStatus')
+        if (!selected) return
+
+        const artefact = artefacts[selected]
+
+        // Show On Display immediately
+        showOnDisplay(artefact)
+
+        // Reset
+        conversationId = null
+        agentName      = null
+        document.getElementById('chatMessages').innerHTML = `
+            <div class="empty-state">
+                <div class="icon">🕯️</div>
+                <p>Summoning your guide...</p>
+            </div>`
+        document.getElementById('guideContent').innerHTML = `
+            <div class="guide-empty"><span class="spinner"></span> Loading...</div>`
+        document.getElementById('userInput').disabled = true
+        document.getElementById('sendBtn').disabled   = true
+        select.disabled  = true
+        status.innerHTML = '<span class="spinner"></span>Loading...'
+        status.className = 'status'
+
+        try {
+            const res  = await fetch(`${API_BASE}/init-conversation`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    agent: 'Museum Guide',
+                    storyname: artefact.storyname,
+                    event_index: artefact.event_index,
+                    usercharacter: 'Visitor'
+                })
+            })
+
+            const data = await res.json()
+            if (data.error) throw new Error(data.error)
+
+            conversationId = data.conversation_id
+            agentName      = data.character_name || 'Museum Guide'
+
+            // Chat header
+            document.getElementById('agentName').textContent     = agentName
+            document.getElementById('agentArtefact').textContent = artefact.name
+
+            const avatarEl = document.getElementById('agentAvatar')
+            if (data.image_url) {
+                avatarEl.innerHTML = `<img src="${data.image_url}" alt="${agentName}" />`
+            } else {
+                avatarEl.textContent = agentName[0]
+            }
+
+            // Guide panel
+            document.getElementById('guideContent').innerHTML = `
+                <div class="guide-avatar-wrap">
+                    ${data.image_url
+                        ? `<img src="${data.image_url}" class="guide-avatar-img" alt="${agentName}" />`
+                        : `<div class="guide-avatar-placeholder">${agentName[0]}</div>`}
+                    <div>
+                        <div class="guide-name">${agentName}</div>
+                        <div class="guide-role">Museum Guide · ${artefact.name}</div>
+                    </div>
+                </div>
+                <div class="guide-bio">${data.response.substring(0, 600)}</div>`
+
+            // First message
+            document.getElementById('chatMessages').innerHTML = ''
+            addMessage(data.response)
+
+            document.getElementById('userInput').disabled = false
+            document.getElementById('sendBtn').disabled   = false
+            status.textContent = '✦ Guide ready'
+            status.className   = 'status success'
+
+        } catch (err) {
+            status.textContent = `✦ ${err.message}`
+            status.className   = 'status error'
+            document.getElementById('chatMessages').innerHTML = `
+                <div class="empty-state">
+                    <div class="icon">⚠️</div>
+                    <p>${err.message}</p>
+                </div>`
+            document.getElementById('guideContent').innerHTML = `
+                <div class="guide-empty">${err.message}</div>`
+        } finally {
+            select.disabled = false
+        }
+    }
+
+    async function sendMessage() {
+        const input   = document.getElementById('userInput')
+        const message = input.value.trim()
+        if (!message || !conversationId) return
+
+        input.value                               = ''
+        input.disabled                            = true
+        document.getElementById('sendBtn').disabled = true
+        addMessage(message, true)
+
+        try {
+            const res  = await fetch(`${API_BASE}/response`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ response: message, conversation_id: conversationId })
+            })
+            const data = await res.json()
+            if (data.error) throw new Error(data.error)
+            addMessage(data.response)
+        } catch (err) {
+            addMessage(`Error: ${err.message}`)
+        } finally {
+            input.disabled                              = false
+            document.getElementById('sendBtn').disabled = false
+            input.focus()
+        }
+    }
+
+    function handleKeyPress(e) {
+        if (e.key === 'Enter') sendMessage()
+    }
+</script>
+
+</body>
+</html>
