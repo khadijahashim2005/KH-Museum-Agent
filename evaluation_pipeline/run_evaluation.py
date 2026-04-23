@@ -11,12 +11,12 @@ import os
 import json
 from datetime import datetime
 import json
-from mistralai import Mistral
+from mistralai.client import Mistral
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# ── Paths — all local, no AutoGame-copy dependency ──────────
+# ── Paths  ──────────
 BASE_DIR         = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HARD_TESTING_SET = os.path.join(BASE_DIR, "data", "hard_testing_set.json")
 SOFT_TESTING_SET = os.path.join(BASE_DIR, "data", "soft_testing_set.json")

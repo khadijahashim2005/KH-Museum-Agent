@@ -10,12 +10,12 @@
 # ============================================================
 
 import os
-from mistralai import Mistral
+from mistralai.client import Mistral
 from dotenv import load_dotenv
 
-from api.safeguards.boundary_check    import boundary_check
-from api.safeguards.consistency_guard import reinject_profile
-from api.safeguards.context_manager   import manage_context
+from safety.boundary_check    import boundary_check
+from safety.consistency_guard import reinject_profile
+from safety.context_manager   import manage_context
 
 load_dotenv()
 
