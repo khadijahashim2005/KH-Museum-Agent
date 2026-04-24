@@ -25,11 +25,41 @@ def load_results(path: str) -> dict:
     with open(path, "r") as f:
         data = json.load(f)
 
-    # File is a list of runs — report on the latest
     if isinstance(data, list):
         if not data:
             raise ValueError("No evaluation runs found in results file.")
-        print(f"Found {len(data)} evaluation run(s) — reporting on the latest.\n")
+
+        # Prefer latest entry that has averaged results
+        averaged_entries = [e for e in data if "averaged" in e]
+        if averaged_entries:
+            latest   = averaged_entries[-1]
+            avg      = latest["averaged"]
+            last_run = latest["runs"][-1]
+            print(f"Found {len(averaged_entries)} averaged run(s) — reporting on: {latest.get('artefact')}\n")
+            return {
+                "artifact":      latest.get("artefact", "Unknown"),
+                "timestamp":     last_run.get("timestamp", ""),
+                "overall_score": avg["overall_avg"],
+                "hard_knowledge": {
+                    **last_run["hard_knowledge"],
+                    "accuracy": avg["hard_knowledge_avg"],
+                },
+                "soft_knowledge": {
+                    **last_run["soft_knowledge"],
+                    "avg_score": avg["soft_knowledge_avg"],
+                },
+                "safety": {
+                    **last_run["safety"],
+                    "safety_score": avg["safety_avg"],
+                },
+                "consistency": {
+                    **last_run["consistency"],
+                    "consistency_score": avg["consistency_avg"],
+                },
+            }
+
+        # Fallback to latest single run
+        print(f"Found {len(data)} run(s) — reporting on the latest.\n")
         return data[-1]
 
     return data
@@ -135,10 +165,55 @@ def generate_report(run: dict) -> str:
     return "\n".join(lines)
 
 
+def generate_summary_table(path: str) -> str:
+    """Generate a summary table across all evaluated artefacts."""
+    with open(path, "r") as f:
+        data = json.load(f)
+
+    averaged = [e for e in data if isinstance(e, dict) and "averaged" in e]
+    if not averaged:
+        return ""
+
+    w = 60
+    lines = []
+    lines.append("\n" + "=" * w)
+    lines.append("  SUMMARY — ALL ARTEFACTS")
+    lines.append("=" * w)
+    lines.append(f"  {'Artefact':<32} {'Hard':>5} {'Soft':>5} {'Safe':>5} {'Cons':>5} {'Avg':>5}")
+    lines.append(f"  {'─'*32} {'─'*5} {'─'*5} {'─'*5} {'─'*5} {'─'*5}")
+
+    overall_scores = []
+    for entry in averaged:
+        avg   = entry["averaged"]
+        title = entry.get("artefact", "Unknown")[:32]
+        lines.append(
+            f"  {title:<32} "
+            f"{avg['hard_knowledge_avg']:>5.2f} "
+            f"{avg['soft_knowledge_avg']:>5.2f} "
+            f"{avg['safety_avg']:>5.2f} "
+            f"{avg['consistency_avg']:>5.2f} "
+            f"{avg['overall_avg']:>5.2f}"
+        )
+        overall_scores.append(avg["overall_avg"])
+
+    if overall_scores:
+        mean = round(sum(overall_scores) / len(overall_scores), 2)
+        lines.append(f"  {'─'*32} {'─'*5} {'─'*5} {'─'*5} {'─'*5} {'─'*5}")
+        lines.append(f"  {'MEAN':<32} {'':>5} {'':>5} {'':>5} {'':>5} {mean:>5.2f}")
+
+    lines.append("=" * w)
+    return "\n".join(lines)
+
+
 def main():
     print(f"Loading results from {RESULTS_FILE}...")
     run    = load_results(RESULTS_FILE)
     report = generate_report(run)
+
+    # Add summary table if multiple artefacts evaluated
+    summary = generate_summary_table(RESULTS_FILE)
+    if summary:
+        report = report + summary
 
     print(report)
 

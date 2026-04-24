@@ -9,7 +9,7 @@
 
 import os
 import json
-from datetime import datetime
+from datetime import datetime, time
 import json
 from mistralai.client import Mistral
 from dotenv import load_dotenv
@@ -98,12 +98,22 @@ def judge_answer(client, judge_agent_id: str, question: str,
         f"Reference: {source_summary}\n"
         f"CorrectAnswer: {correct_answer}"
     )
-
-    response = client.beta.conversations.start(
-        agent_id=judge_agent_id,
-        inputs=[{"role": "user", "content": qa_input}],
-    )
-    judgment = response.outputs[0].content.strip()
+    for attempt in range(3):
+        try:
+            response = client.beta.conversations.start(
+                agent_id=judge_agent_id,
+                inputs=[{"role": "user", "content": qa_input}],
+            )
+            judgment = response.outputs[0].content.strip()
+            break
+        except Exception as e:
+            if attempt < 2:
+                print(f"    Judge timeout/error — retrying in 10s... ({e})")
+                time.sleep(10)
+            else:
+                print(f"    Judge failed after 3 attempts — scoring 0")
+                return {"judgment": "", "score": 0.0, "verdict": "timeout"}
+    
 
     try:
         clean = judgment.replace("```json", "").replace("```", "").strip()
