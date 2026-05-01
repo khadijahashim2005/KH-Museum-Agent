@@ -9,6 +9,7 @@
 
 import os
 import sys
+import time
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, BASE_DIR)
@@ -25,7 +26,7 @@ CACHE_FILE   = os.path.join(BASE_DIR, "data", "cached_agents.json")
 RESULTS_FILE = os.path.join(BASE_DIR, "data", "evaluation_results.json")
 
 # ── Config ───────────────────────────────────────────────────
-ALL_INDICES = list(range(10))  # evaluate all 10 artefacts (0-9)
+ALL_INDICES = list(range(12))  # evaluate all 12 artefacts (0-11)
 N_RUNS      = 3                # runs per artefact to average
 
 
@@ -38,6 +39,7 @@ def load_cache() -> dict:
 
 
 def run_once(artefact: dict, profile: str, run_num: int, total: int) -> dict:
+    time.sleep(5) 
     print(f"\n{'─'*60}")
     print(f"  RUN {run_num}/{total} — {artefact.get('title')}")
     print(f"{'─'*60}")

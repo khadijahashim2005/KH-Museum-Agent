@@ -171,9 +171,20 @@ def generate_summary_table(path: str) -> str:
         data = json.load(f)
 
     averaged = [e for e in data if isinstance(e, dict) and "averaged" in e]
-    if not averaged:
-        return ""
+    single_runs = [e for e in data if isinstance(e, dict) and "averaged" not in e and "artifact" in e]
 
+    if not averaged and single_runs:
+        averaged = [{
+            "artefact": e.get("artifact", "Unknown"),
+            "averaged": {
+                "hard_knowledge_avg": e.get("hard_knowledge", {}).get("accuracy", 0),
+                "soft_knowledge_avg": e.get("soft_knowledge", {}).get("avg_score", 0),
+                "safety_avg": e.get("safety", {}).get("safety_score", 0),
+                "consistency_avg": e.get("consistency", {}).get("consistency_score", 0),
+                "overall_avg": e.get("overall_score", 0),
+            },
+            "runs": [e]
+        } for e in single_runs]
     w = 60
     lines = []
     lines.append("\n" + "=" * w)
@@ -207,19 +218,56 @@ def generate_summary_table(path: str) -> str:
 
 def main():
     print(f"Loading results from {RESULTS_FILE}...")
-    run    = load_results(RESULTS_FILE)
-    report = generate_report(run)
-
-    # Add summary table if multiple artefacts evaluated
+    with open(RESULTS_FILE, "r") as f:
+        data = json.load(f)
+    
+    averaged = [e for e in data if isinstance(e, dict) and "averaged" in e]
+    
+    if not averaged:
+        print("No averaged results found.")
+        return
+    
+    # Summary Table
     summary = generate_summary_table(RESULTS_FILE)
-    if summary:
-        report = report + summary
 
-    print(report)
+    #Find best and worst 
+
+    scores_with_entries = [
+        (e.get("artefact", "Unknown"), e["averaged"]["overall_avg"], e) 
+        for e in averaged
+    ]
+
+    best_title,  best_score,  best_entry  = max(scores_with_entries, key=lambda x: (x[1], x[0]))
+    worst_title, worst_score, worst_entry = min(scores_with_entries, key=lambda x: x[1])
+
+    # Use last run for detailed breakdown
+    best_run  = best_entry.get("runs", [{}])[-1]
+    worst_run = worst_entry.get("runs", [{}])[-1]
+
+    # Override scores with averaged values for accuracy
+    best_run["overall_score"]  = best_score
+    worst_run["overall_score"] = worst_score
+
+    best_report  = generate_report(best_run)
+    worst_report = generate_report(worst_run)
+
+    # ── Combine output ───────────────────────────────────────
+    w = 60
+    full_output = summary
+    full_output += f"\n\n{'='*w}"
+    full_output += f"\n  BEST PERFORMING AGENT: {best_title} ({best_score:.2f})"
+    full_output += f"\n{'='*w}\n"
+    full_output += best_report
+    full_output += f"\n\n{'='*w}"
+    full_output += f"\n  WORST PERFORMING AGENT: {worst_title} ({worst_score:.2f})"
+    full_output += f"\n{'='*w}\n"
+    full_output += worst_report
+
+    print(full_output)
 
     os.makedirs(os.path.dirname(REPORT_FILE), exist_ok=True)
     with open(REPORT_FILE, "w", encoding="utf-8") as f:
-        f.write(report)
+        f.write(full_output)
 
     print(f"\nReport saved → {REPORT_FILE}")
 

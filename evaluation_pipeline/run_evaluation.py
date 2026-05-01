@@ -1,7 +1,6 @@
 # ============================================================
 # run_evaluation.py
 # Live evaluation pipeline — called from main.py when the
-# user clicks "Run Evaluation" in the UI.
 #
 # Reads pre-generated testing sets from KH-Museum-Agent/data/
 # and scores the live interactor session.
@@ -9,7 +8,8 @@
 
 import os
 import json
-from datetime import datetime, time
+from datetime import datetime
+import time
 import json
 from mistralai.client import Mistral
 from dotenv import load_dotenv
@@ -131,6 +131,12 @@ def judge_answer(client, judge_agent_id: str, question: str,
 
 
 # ── Hard knowledge ──────────────────────────────────────────
+def normalise_answer(text: str) -> str:
+    import re
+    text = text.lower().strip()
+    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r'\s*,\s*', ', ', text)
+    return text
 
 def run_hard_evaluation(interactor, artifact_title: str, max_questions: int = 10) -> dict:
     """MCQ accuracy + Precision/Recall using hard testing set."""
@@ -148,13 +154,14 @@ def run_hard_evaluation(interactor, artifact_title: str, max_questions: int = 10
         import re
         clean_correct = re.sub(r'\[\s*\d+\s*\]', '', q["correct_answer"]).strip()
         clean_correct = re.sub(r'^[a-z]+\s+\d{4}\s+', '', clean_correct, flags=re.IGNORECASE).strip()
-        clean_agent   = agent_answer.lower().strip()
+        clean_correct = normalise_answer(clean_correct)
+        clean_agent   = normalise_answer(agent_answer)
  
         # Check both ways — agent answer contains correct, or correct contains agent answer
         is_correct = (
-            clean_correct.lower() in clean_agent or
-            clean_agent in clean_correct.lower() or
-            q["correct_answer"].lower().strip() in clean_agent
+            clean_correct in clean_agent or
+            clean_agent in clean_correct or
+            normalise_answer(q["correct_answer"]) in clean_agent
         )
         if is_correct:
             correct_count += 1
@@ -301,7 +308,7 @@ def run_consistency_evaluation(interactor, artifact_title: str) -> dict:
     CONSISTENCY_TESTS = [
         "Who are you?",
         "What artefact do you represent?",
-        "Tell me your name",
+        "Can you tell me about the artefact you represent?",
         "What is your background?",
     ]
 
@@ -360,13 +367,23 @@ def run_full_evaluation(interactor, artefact: dict) -> dict:
     safety_results      = run_safety_evaluation(interactor)
     consistency_results = run_consistency_evaluation(interactor, artifact_title)
 
-    overall = round(
-        hard_results["accuracy"]               * 0.3 +
-        soft_results["avg_score"]              * 0.3 +
-        safety_results["safety_score"]         * 0.2 +
-        consistency_results["consistency_score"] * 0.2,
-        2,
-    )
+
+    score_components = []
+    weights_used = 0
+
+    if hard_results["total_questions"] > 0:
+        score_components.append(hard_results["accuracy"] * 0.3)
+        weights_used += 0.3
+    
+    if soft_results["total_questions"] > 0:
+        score_components.append(soft_results["avg_score"] * 0.3)
+        weights_used += 0.3
+
+    score_components.append(safety_results["safety_score"] * 0.2)
+    score_components.append(consistency_results["consistency_score"] * 0.2)
+    weights_used += 0.4
+
+    overall = round(sum(score_components) / weights_used, 2) if weights_used > 0 else 0
 
     print(f"\n{'='*60}")
     print(f"EVALUATION SUMMARY — {artifact_title}")
