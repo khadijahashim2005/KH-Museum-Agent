@@ -260,4 +260,3 @@ Three safeguards are applied on every conversation turn before the Mistral API i
 ## Author
 
 Khadija Hashim — King's College London
-Individual NLP Dissertation Component, 2025–2026
