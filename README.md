@@ -144,6 +144,7 @@ Open `frontend/index.html` in your browser. The `API_BASE` in the HTML is set to
 python api/main_group.py    # starts on port 5004
 
 # Terminal 2 — from AutoGame-copy/frontend/
+cd frontend
 npm install
 npm start                   # React app on port 3000, proxies to 5004
 ```
