@@ -21,6 +21,8 @@ The system runs in two modes:
 
 ```
 KH-Museum-Agent/
+├── .env                          ← API keys and agent IDs (pre-configured)
+├── requirements.txt              ← Python dependencies
 ├── api/
 │   ├── main.py                   ← Individual frontend backend (port 5005)
 │   ├── main_group.py             ← Group frontend backend (port 5004)
@@ -93,9 +95,13 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+All required packages are listed in `requirements.txt`. This includes Flask, Flask-CORS, mistralai, python-dotenv, and all evaluation dependencies.
+
 ### 2. Configure environment variables
 
-Create a `.env` file in the project root:
+A `.env` file is already included in the repository with the necessary Mistral API key and agent IDs configured. The application will work out of the box without any changes.
+
+If you have your own Mistral account and want to use your own agents, replace the values in `.env`:
 
 ```env
 MISTRAL_API_KEY=your_key_here
@@ -104,30 +110,19 @@ INTERACTOR_AGENT_ID=your_interactor_agent_id
 QA_JUDGE_AGENT_ID=your_qa_judge_agent_id
 ```
 
-### 3. Add the British Museum dataset
-
-Copy `british_museum_collections.json` into `data/`:
-
-```
-KH-Museum-Agent/data/british_museum_collections.json
-```
-
 ---
 
 ## Run Order (First Time Setup)
 
-Run these once before starting the application:
+Agent profiles have already been pre-generated and images have already been downloaded — the application will work immediately after setup. The scripts below are provided for reference if you need to regenerate everything from scratch:
 
 ```bash
-# Step 1 — Pre-generate all agent profiles (~20 minutes)
+# Generate all agent profiles (~20 minutes)
 # Also runs generate_group_agents() to add Magdeburg Ivories + Rosetta Stone
 python scripts/generate_agents.py
 
-# Step 2 — Download images locally (prevents URL expiry)
+# Download images locally (prevents Mistral signed URL expiry)
 python scripts/download_images.py
-
-# Step 3 — Generate evaluation testing sets
-python evaluation/combined_mcq_generator.py
 ```
 
 ---
@@ -163,13 +158,20 @@ Make sure `AutoGame-copy/frontend/package.json` has:
 
 ## Running Evaluation
 
-Evaluation is run from the command line using `test_evaluation.py`:
+> **Note:** Evaluation results have already been generated and are included in the repository at `data/evaluation_results.json` and `data/evaluation_report.txt`. If you want to regenerate them from scratch, delete both files before running the pipeline below.
+
+The evaluation pipeline runs in three stages:
 
 ```bash
-# Run evaluation across all 10 artefacts (3 averaged runs each)
+# Stage 1 — defines the evaluation functions (no output, imported by test_evaluation.py)
+python evaluation_pipeline/run_evaluation.py
+
+# Stage 2 — runs evaluation across all 10 artefacts (3 averaged runs each)
+# saves results to data/evaluation_results.json
 python evaluation_pipeline/test_evaluation.py
 
-# Generate a readable report from results
+# Stage 3 — generates a human-readable report from the results
+# saves to data/evaluation_report.txt
 python evaluation_pipeline/report.py
 ```
 
@@ -229,18 +231,6 @@ Three safeguards are applied on every conversation turn before the Mistral API i
 | ----- | ----------------- | ------------------------------ |
 | 10    | Magdeburg Ivories | Brother Albrecht von Magdeburg |
 | 11    | Rosetta Stone     | Dr. Amina Farouk               |
-
----
-
-## Adding a New Artefact
-
-To add a new artefact to the system:
-
-1. Ensure it exists in `data/british_museum_collections.json`
-2. Add its title to `TARGET_TITLES` in both `evaluation/hard_mcq_generator.py` and `evaluation/soft_mcq_generator.py`
-3. Run `python scripts/generate_agents.py` to generate the character profile
-4. Run `python evaluation/combined_mcq_generator.py` to generate evaluation questions
-5. Add its metadata to the `artefacts` object in `frontend/index.html`
 
 ---
 
