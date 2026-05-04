@@ -22,44 +22,49 @@ The system runs in two modes:
 ```
 KH-Museum-Agent/
 ├── api/
-│   ├── main.py                  ← Individual frontend backend (port 5005)
-│   ├── main_group.py            ← Group frontend backend (port 5004)
-│   ├── collector.py             ← Step 1: generates character profile
-│   ├── interactor.py            ← Step 2: manages conversation
+│   ├── main.py                   ← Individual frontend backend (port 5005)
+│   ├── main_group.py             ← Group frontend backend (port 5004)
+│   ├── collector.py              ← Step 1: generates character profile
+│   ├── interactor.py             ← Step 2: manages conversation
+│   ├── evaluator.py              ← Step 3: per-session hard + soft evaluation
 │   └── safety/
-│       ├── boundary_check.py    ← Challenge 1: out-of-scope refusal
-│       ├── consistency_guard.py ← Challenge 2: profile drift prevention
-│       └── context_manager.py   ← Challenge 3: token limit management
+│       ├── __init__.py
+│       ├── boundary_check.py     ← Challenge 1: out-of-scope refusal
+│       ├── consistency_guard.py  ← Challenge 2: profile drift prevention
+│       └── context_manager.py    ← Challenge 3: token limit management
 │
 ├── scripts/
-│   ├── generate_agents.py       ← Pre-generate all agent profiles (run once)
-│   ├── generate_group_agents.py ← Pre-generate group artefact profiles
-│   └── download_images.py       ← Download Mistral images locally (run once)
+│   ├── generate_agents.py        ← Pre-generate all agent profiles (run once)
+│   │                               includes generate_group_agents() method
+│   └── download_images.py        ← Download Mistral images locally (run once)
 │
 ├── evaluation/
-│   ├── hard_mcq_generator.py    ← Generate factual MCQ questions
-│   ├── soft_mcq_generator.py    ← Generate contextual MCQ questions (LLM)
-│   ├── combined_mcq_generator.py← Combine into full testing set
-│   ├── evaluation_script.py     ← Group project evaluation (4-dimension)
-│   └── utils.py                 ← Shared helpers
+│   ├── __init__.py
+│   ├── hard_mcq_generator.py     ← Generate factual MCQ questions
+│   ├── soft_mcq_generator.py     ← Generate contextual MCQ questions (LLM)
+│   ├── combined_mcq_generator.py ← Combine into full testing set
+│   ├── inspect_infobox_keys.py   ← Utility: explore dataset infobox fields
+│   └── utils.py                  ← Shared helpers
 │
 ├── evaluation_pipeline/
-│   ├── run_evaluation.py        ← Live 4-dimension evaluation
-│   └── report.py                ← Generate human-readable report
+│   ├── __init__.py
+│   ├── run_evaluation.py         ← Live 4-dimension evaluation
+│   ├── report.py                 ← Generate human-readable report
+│   └── test_evaluation.py        ← Run evaluation from command line
 │
 ├── frontend/
-│   └── index.html               ← Individual museum-themed frontend
+│   └── index.html                ← Individual museum-themed frontend
 │
-├── data/
-│   ├── cached_agents.json       ← Pre-generated profiles (created by scripts)
-│   ├── images/                  ← Downloaded agent avatars
-│   ├── hard_testing_set.json    ← Hard MCQ testing set
-│   ├── soft_testing_set.json    ← Soft MCQ testing set
-│   ├── full_testing_set.json    ← Combined testing set
-│   └── evaluation_results.json  ← Evaluation results
-│
-└── scripts/
-    └── test_evaluation.py       ← Run evaluation from command line
+└── data/
+    ├── british_museum_collections.json  ← Source dataset (add manually)
+    ├── cached_agents.json               ← Pre-generated profiles (created by scripts)
+    ├── museum_events.json               ← Event metadata (created by generate_agents.py)
+    ├── images/                          ← Downloaded agent avatars
+    ├── hard_testing_set.json            ← Hard MCQ testing set (created by evaluation/)
+    ├── soft_testing_set.json            ← Soft MCQ testing set (created by evaluation/)
+    ├── full_testing_set.json            ← Combined testing set (created by evaluation/)
+    ├── evaluation_results.json          ← Evaluation results (created by pipeline)
+    └── evaluation_report.txt            ← Human-readable report (created by report.py)
 ```
 
 ---
@@ -115,9 +120,10 @@ Run these once before starting the application:
 
 ```bash
 # Step 1 — Pre-generate all agent profiles (~20 minutes)
+# Also runs generate_group_agents() to add Magdeburg Ivories + Rosetta Stone
 python scripts/generate_agents.py
 
-# Step 2 — Download images locally (prevents expiry)
+# Step 2 — Download images locally (prevents URL expiry)
 python scripts/download_images.py
 
 # Step 3 — Generate evaluation testing sets
@@ -134,7 +140,7 @@ python evaluation/combined_mcq_generator.py
 python api/main.py          # starts on port 5005
 ```
 
-Open `frontend/index.html` in your browser. Make sure `API_BASE` in the HTML is set to `http://localhost:5005`.
+Open `frontend/index.html` in your browser. The `API_BASE` in the HTML is set to `http://localhost:5005`.
 
 ### Group frontend integration
 
@@ -157,21 +163,19 @@ Make sure `AutoGame-copy/frontend/package.json` has:
 
 ## Running Evaluation
 
-### From the UI
-
-Start the application, select an artefact, chat with the agent, then click **Run Evaluation**.
-
-### From the command line
+Evaluation is run from the command line using `test_evaluation.py`:
 
 ```bash
-# Evaluate a single artefact (3 averaged runs)
-python scripts/test_evaluation.py
+# Run evaluation across all 10 artefacts (3 averaged runs each)
+python evaluation_pipeline/test_evaluation.py
 
-# Generate a readable report
+# Generate a readable report from results
 python evaluation_pipeline/report.py
 ```
 
-Edit `TEST_INDEX` in `test_evaluation.py` to change which artefact is evaluated (0–9).
+Edit `TEST_INDEX` and `N_RUNS` at the top of `test_evaluation.py` to control which artefact is evaluated and how many runs to average.
+
+The script supports **resume** — if interrupted, it skips artefacts already saved in `evaluation_results.json` and picks up from where it left off.
 
 ---
 
@@ -179,12 +183,12 @@ Edit `TEST_INDEX` in `test_evaluation.py` to change which artefact is evaluated 
 
 The live evaluation pipeline scores agents across four dimensions:
 
-| Dimension      | Weight | Method                              |
-| -------------- | ------ | ----------------------------------- |
-| Hard knowledge | 30%    | MCQ accuracy from structured fields |
-| Soft knowledge | 30%    | LLM-as-judge (QA-Judge agent)       |
-| Safety         | 20%    | Adversarial refusal testing         |
-| Consistency    | 20%    | Character identity questions        |
+| Dimension      | Weight | Method                                       |
+| -------------- | ------ | -------------------------------------------- |
+| Hard knowledge | 30%    | MCQ accuracy from structured artefact fields |
+| Soft knowledge | 30%    | LLM-as-judge (QA-Judge agent)                |
+| Safety         | 20%    | Adversarial refusal testing (5 prompts)      |
+| Consistency    | 20%    | Character identity questions (4 prompts)     |
 
 Results are saved to `data/evaluation_results.json` and a summary report to `data/evaluation_report.txt`.
 
@@ -194,11 +198,11 @@ Results are saved to `data/evaluation_results.json` and a summary report to `dat
 
 Three safeguards are applied on every conversation turn before the Mistral API is called:
 
-| Safeguard              | Challenge   | Behaviour                                                                                       |
-| ---------------------- | ----------- | ----------------------------------------------------------------------------------------------- |
-| `boundary_check.py`    | Challenge 1 | Refuses out-of-scope queries (harmful, medical, legal, political, homework) without an API call |
-| `context_manager.py`   | Challenge 3 | Compresses conversation history using LLM summarisation when estimated tokens exceed 4,000      |
-| `consistency_guard.py` | Challenge 2 | Reinjection of character profile every 8 turns to prevent persona drift                         |
+| File                   | Challenge   | Behaviour                                             |
+| ---------------------- | ----------- | ----------------------------------------------------- |
+| `boundary_check.py`    | Challenge 1 | Refuses out-of-scope queries without an API call      |
+| `context_manager.py`   | Challenge 3 | Compresses history when estimated tokens exceed 4,000 |
+| `consistency_guard.py` | Challenge 2 | Reinjects character profile every 8 turns             |
 
 ---
 
@@ -228,6 +232,18 @@ Three safeguards are applied on every conversation turn before the Mistral API i
 
 ---
 
+## Adding a New Artefact
+
+To add a new artefact to the system:
+
+1. Ensure it exists in `data/british_museum_collections.json`
+2. Add its title to `TARGET_TITLES` in both `evaluation/hard_mcq_generator.py` and `evaluation/soft_mcq_generator.py`
+3. Run `python scripts/generate_agents.py` to generate the character profile
+4. Run `python evaluation/combined_mcq_generator.py` to generate evaluation questions
+5. Add its metadata to the `artefacts` object in `frontend/index.html`
+
+---
+
 ## API Endpoints
 
 | Endpoint               | Method | Description                                             |
@@ -252,5 +268,5 @@ Three safeguards are applied on every conversation turn before the Mistral API i
 
 ## Author
 
-Khadija Hashim — King's College London  
+Khadija Hashim — King's College London
 Individual NLP Dissertation Component, 2025–2026
