@@ -98,7 +98,16 @@ The system applies a boundary check before every response. If your question fall
 
 ### Step 3 — Evaluating the Guide (Optional)
 
-After you have held a conversation, click the **Evaluate Agent** button below the chat box.
+After you have held a conversation, You can run the evaluation script by entering the following commands in the terminal. 
+NOTE: This has already been done. In order to re-run the evaluation -> delete data/evaluation_results.json and data/evaluation_report.txt. After that you can run the following list of commands.
+
+```
+cd evaluation_pipeline
+python run_evaluation.py
+python test_evaluation.py
+python report_evaluation.py
+```
+
 
 The system runs a four-dimensional evaluation automatically:
 
@@ -165,30 +174,3 @@ This mode loads two shared artefacts (the **Magdeburg Ivories** and the **Rosett
 | 8   | Bell Shrine of Conall Cael   | 8th century     | Ireland  |
 | 9   | Copán Bench Panel            | 8th century     | Honduras |
 | 10  | Empress Pepper Pot           | 4th century     | England  |
-
----
-
-## Frequently Asked Questions
-
-**The guide gives an unexpected answer — is that normal?**  
-The guide is generative, so phrasing varies between sessions. If you notice a factually incorrect response, run the Evaluate Agent function — low hard-knowledge scores indicate where accuracy drops.
-
-**Can I start a fresh conversation?**  
-Re-selecting the same artefact from the dropdown resets the session and starts a new conversation.
-
-**Where are the evaluation results stored?**  
-The latest report is always at `data/evaluation_report.txt`. All historical runs are appended to `data/evaluation_results.json`.
-
-**How do I add a new artefact?**  
-Add its metadata to `data/british_museum_collections.json` and run `python scripts/generate_agents.py` to pre-generate the new character profile and portrait.
-
----
-
-## Troubleshooting
-
-| Symptom                      | Likely cause                                               | Fix                                                            |
-| ---------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------- |
-| Blank character portrait     | Image generation quota exceeded                            | Check Mistral API limits; portraits fall back to a placeholder |
-| "Agent not found" on startup | `cached_agents.json` missing or empty                      | Run `python scripts/generate_agents.py`                        |
-| Evaluation hangs             | Missing `hard_testing_set.json` or `soft_testing_set.json` | Run scripts in `evaluation/` to regenerate test sets           |
-| Port already in use          | Another process on 5005 / 5004                             | Stop the other process or change `PORT` in `api/main.py`       |
